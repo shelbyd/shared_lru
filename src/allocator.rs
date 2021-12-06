@@ -26,7 +26,7 @@ impl Allocator {
                 Some((id, bytes)) => {
                     self.used -= bytes;
                     AllocResult::Evict(id)
-                },
+                }
                 None => {
                     assert!(bytes > self.capacity);
                     AllocResult::TooLarge

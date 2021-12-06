@@ -9,7 +9,9 @@ mod allocator;
 use allocator::{AllocResult, Allocator, EntryId};
 mod lru_map;
 mod memory_size;
-pub use memory_size::{MemorySize, JustStack};
+pub use memory_size::{JustStack, MemorySize};
+
+pub type ValueRef<'l, K, V> = RwLockReadGuardRef<'l, EntryMap<K, V>, V>;
 
 pub struct SharedLru {
     inner: Mutex<InnerShared>,
@@ -56,10 +58,7 @@ impl InnerShared {
                     return Some(id);
                 }
                 AllocResult::Evict(id) => self.evict(id),
-
-                unhandled => {
-                    unimplemented!("unhandled: {:?}", unhandled);
-                }
+                AllocResult::TooLarge => return None,
             }
         }
     }
@@ -93,6 +92,7 @@ where
     where
         K: Clone,
     {
+        // TODO(shelbyd): Remove clone here.
         let as_trait: Weak<dyn EntryHolder> =
             Arc::downgrade(&(Arc::clone(&self.entry_map) as Arc<dyn EntryHolder>));
 
@@ -101,14 +101,25 @@ where
         }
     }
 
-    pub fn get(&self, k: &K) -> Option<RwLockReadGuardRef<EntryMap<K, V>, V>> {
+    pub fn get(&self, k: &K) -> Option<ValueRef<K, V>> {
         let read = self.entry_map.read().unwrap();
-        match read.get_id(k) {
-            Some(id) => {
-                self.shared.touch(id);
-                Some(RwLockReadGuardRef::new(read).map(|map| map.get(k).unwrap()))
+        self.shared.touch(read.get_id(k)?);
+
+        Some(RwLockReadGuardRef::new(read).map(|map| map.get(k).unwrap()))
+    }
+
+    /// Returns an `Option` because the resulting value may be too large to fit inside the
+    /// allowed space. If the value is small enough, this will always return Some.
+    pub fn get_or_insert(&self, k: K, insert_with: impl FnOnce() -> V) -> Option<ValueRef<K, V>>
+    where
+        K: Clone,
+    {
+        match self.get(&k) {
+            Some(ret) => Some(ret),
+            None => {
+                self.insert(k.clone(), insert_with());
+                self.get(&k)
             }
-            None => None,
         }
     }
 }
