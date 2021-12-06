@@ -6,6 +6,7 @@ edition = "2021"
 authors = ["Shelby Doolittle <shelby@shelbyd.com>"]
 tags = ["cache", "lru"]
 repository = "https://github.com/shelbyd/shared_lru"
+license = "MIT"
 
 [dependencies]
 owning_ref = "0.4.1"
