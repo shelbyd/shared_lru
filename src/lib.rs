@@ -25,11 +25,11 @@ impl SharedLru {
         })
     }
 
-    pub fn make_cache<K, V>(self: &Arc<Self>) -> Arc<LruCache<K, V>> {
-        Arc::new(LruCache {
+    pub fn make_cache<K, V>(self: &Arc<Self>) -> LruCache<K, V> {
+        LruCache {
             shared: Arc::clone(self),
-            entry_map: RwLock::new(EntryMap::default()),
-        })
+            entry_map: Arc::new(RwLock::new(EntryMap::default())),
+        }
     }
 
     fn claim(&self, bytes: usize, holder: Weak<dyn EntryHolder>) -> Option<EntryId> {
@@ -81,7 +81,7 @@ impl InnerShared {
 
 pub struct LruCache<K, V> {
     shared: Arc<SharedLru>,
-    entry_map: RwLock<EntryMap<K, V>>,
+    entry_map: Arc<RwLock<EntryMap<K, V>>>,
 }
 
 impl<K, V> LruCache<K, V>
@@ -89,12 +89,12 @@ where
     K: MemorySize + Eq + Hash + 'static,
     V: MemorySize + 'static,
 {
-    pub fn insert(self: &Arc<Self>, key: K, value: V)
+    pub fn insert(&self, key: K, value: V)
     where
         K: Clone,
     {
         let as_trait: Weak<dyn EntryHolder> =
-            Arc::downgrade(&(Arc::clone(self) as Arc<dyn EntryHolder>));
+            Arc::downgrade(&(Arc::clone(&self.entry_map) as Arc<dyn EntryHolder>));
 
         if let Some(id) = self.shared.claim(key.bytes() + value.bytes(), as_trait) {
             self.entry_map.write().unwrap().insert(id, key, value);
@@ -117,12 +117,12 @@ trait EntryHolder {
     fn evict(&self, id: EntryId);
 }
 
-impl<K, V> EntryHolder for LruCache<K, V>
+impl<K, V> EntryHolder for RwLock<EntryMap<K, V>>
 where
     K: Eq + Hash,
 {
     fn evict(&self, id: EntryId) {
-        self.entry_map.write().unwrap().remove(id);
+        self.write().unwrap().remove(id);
     }
 }
 

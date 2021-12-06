@@ -23,7 +23,10 @@ impl Allocator {
     pub(crate) fn try_alloc(&mut self, bytes: usize) -> AllocResult {
         if self.used + bytes > self.capacity {
             return match self.allocated.take_oldest() {
-                Some((id, _)) => AllocResult::Evict(id),
+                Some((id, bytes)) => {
+                    self.used -= bytes;
+                    AllocResult::Evict(id)
+                },
                 None => {
                     assert!(bytes > self.capacity);
                     AllocResult::TooLarge
