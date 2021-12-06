@@ -11,6 +11,7 @@ fn main() {
     assert!(fruits.get(&"apple").is_some());
 
     let veggies = shared.make_cache();
+    // There is not enough room in the cache, so we evict the oldest.
     veggies.insert("brocolli", vec![0u8; 1024]);
 
     assert!(fruits.get(&"apple").is_some());
