@@ -27,7 +27,10 @@ impl<T: MemorySize> MemorySize for std::collections::VecDeque<T> {
 impl<K: MemorySize, V: MemorySize> MemorySize for std::collections::HashMap<K, V> {
     fn bytes(&self) -> usize {
         size_of::<Self>()
-            + self.iter().map(|(k, v)| k.bytes() + v.bytes()).sum::<usize>()
+            + self
+                .iter()
+                .map(|(k, v)| k.bytes() + v.bytes())
+                .sum::<usize>()
             + (self.capacity() - self.len()) * size_of::<(K, V)>()
     }
 }

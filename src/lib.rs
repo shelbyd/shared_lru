@@ -90,8 +90,8 @@ pub struct LruCache<K, V> {
 
 impl<K, V> LruCache<K, V>
 where
-    K: MemorySize + Eq + Hash + 'static,
-    V: MemorySize + 'static,
+    K: MemorySize + Eq + Hash + Simple,
+    V: MemorySize + Simple,
 {
     pub fn insert(&self, key: K, value: V)
     where
@@ -129,13 +129,18 @@ where
     }
 }
 
-trait EntryHolder {
+pub trait Simple: Send + Sync + 'static {}
+
+impl<T> Simple for T where T: Send + Sync + 'static {}
+
+trait EntryHolder: Simple {
     fn evict(&self, id: EntryId);
 }
 
 impl<K, V> EntryHolder for RwLock<EntryMap<K, V>>
 where
-    K: Eq + Hash,
+    K: Eq + Hash + Simple,
+    V: Simple,
 {
     fn evict(&self, id: EntryId) {
         self.write().unwrap().remove(id);
@@ -185,5 +190,29 @@ impl<K, V> Default for EntryMap<K, V> {
             ids: Default::default(),
             id_keys: Default::default(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn is_sync<T: Sync>() -> bool {
+        true
+    }
+    fn is_send<T: Send>() -> bool {
+        true
+    }
+
+    #[test]
+    fn storage_send_sync() {
+        assert!(is_send::<SharedLru>());
+        assert!(is_sync::<SharedLru>());
+    }
+
+    #[test]
+    fn cache_send_sync() {
+        assert!(is_send::<LruCache<(), ()>>());
+        assert!(is_sync::<LruCache<(), ()>>());
     }
 }
