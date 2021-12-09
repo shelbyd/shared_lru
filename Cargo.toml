@@ -1,8 +1,8 @@
 [package]
 name = "shared_lru"
 description = "Have multiple caches with heterogenous tracking of recency"
-version = "0.1.1"
-edition = "2021"
+version = "0.1.2"
+edition = "2018"
 authors = ["Shelby Doolittle <shelby@shelbyd.com>"]
 tags = ["cache", "lru"]
 repository = "https://github.com/shelbyd/shared_lru"
