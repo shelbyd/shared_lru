@@ -41,6 +41,12 @@ impl MemorySize for str {
     }
 }
 
+impl MemorySize for String {
+    fn bytes(&self) -> usize {
+        size_of::<Self>() + self.len()
+    }
+}
+
 impl<T> MemorySize for T
 where
     T: JustStack,
@@ -50,7 +56,37 @@ where
     }
 }
 
+impl<T> MemorySize for Option<T> where T: MemorySize {
+    fn bytes(&self) -> usize {
+        size_of::<Self>() + match self {
+            Some(v) => MemorySize::bytes(v),
+            None => 0,
+        }
+    }
+}
+
+#[cfg(feature = "serde_json")]
+impl MemorySize for serde_json::Value {
+    fn bytes(&self) -> usize {
+        use serde_json::Value::*;
+
+        let bonus = match self {
+            Null | Bool(_) | Number(_) => 0,
+            String(s) => s.len(),
+            Array(arr) => arr.iter().map(MemorySize::bytes).sum(),
+            Object(map) => map
+                .iter()
+                .map(|(key, value)| MemorySize::bytes(key) + MemorySize::bytes(value))
+                .sum(),
+        };
+
+        size_of::<Self>() + bonus
+    }
+}
+
 pub trait JustStack {}
+
+impl JustStack for bool {}
 
 impl JustStack for u8 {}
 impl JustStack for u16 {}
@@ -67,5 +103,6 @@ impl JustStack for isize {}
 impl<T: ?Sized> JustStack for &T {}
 impl<T: ?Sized> JustStack for &mut T {}
 
-impl<T: JustStack> JustStack for Option<T> {}
-impl<R: JustStack, E: JustStack> JustStack for Result<R, E> {}
+impl<A: JustStack> JustStack for (A,) {}
+impl<A: JustStack, B: JustStack> JustStack for (A,B) {}
+impl<A: JustStack, B: JustStack, C: JustStack> JustStack for (A,B,C) {}

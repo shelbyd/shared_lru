@@ -1,7 +1,7 @@
 [package]
 name = "shared_lru"
 description = "Have multiple caches with heterogenous tracking of recency"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Shelby Doolittle <shelby@shelbyd.com>"]
 tags = ["cache", "lru"]
@@ -11,3 +11,7 @@ license = "MIT"
 [dependencies]
 owning_ref = "0.4.1"
 rand = { version = "0.8.4", features = ["small_rng"] }
+serde_json = { version = "1.0.72", optional = true }
+
+[features]
+default = []
