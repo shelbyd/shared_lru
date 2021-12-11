@@ -56,12 +56,16 @@ where
     }
 }
 
-impl<T> MemorySize for Option<T> where T: MemorySize {
+impl<T> MemorySize for Option<T>
+where
+    T: MemorySize,
+{
     fn bytes(&self) -> usize {
-        size_of::<Self>() + match self {
-            Some(v) => MemorySize::bytes(v),
-            None => 0,
-        }
+        size_of::<Self>()
+            + match self {
+                Some(v) => MemorySize::bytes(v),
+                None => 0,
+            }
     }
 }
 
@@ -104,5 +108,5 @@ impl<T: ?Sized> JustStack for &T {}
 impl<T: ?Sized> JustStack for &mut T {}
 
 impl<A: JustStack> JustStack for (A,) {}
-impl<A: JustStack, B: JustStack> JustStack for (A,B) {}
-impl<A: JustStack, B: JustStack, C: JustStack> JustStack for (A,B,C) {}
+impl<A: JustStack, B: JustStack> JustStack for (A, B) {}
+impl<A: JustStack, B: JustStack, C: JustStack> JustStack for (A, B, C) {}
