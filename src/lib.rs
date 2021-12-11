@@ -191,9 +191,19 @@ where
     }
 
     fn remove(&self, id: EntryId) -> Option<(K, V)> {
+        shrink_map(&self.values);
+        shrink_map(&self.ids);
+
         let (_, (key, value)) = self.values.remove(&id)?;
         self.ids.remove(&key)?;
         Some((key, value))
+    }
+
+}
+
+fn shrink_map<K: Hash + Eq, V>(map: &DashMap<K, V>) {
+    if map.len() < map.capacity() * 4 / 5 {
+        map.shrink_to_fit();
     }
 }
 
