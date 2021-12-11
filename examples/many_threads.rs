@@ -13,7 +13,7 @@ fn main() {
             std::thread::spawn(move || {
                 eprintln!("Thread {} started", thread);
                 let mut rng = rand::thread_rng();
-                for i in 0..1_000_00 {
+                for i in 0..1_000_000 {
                     if let None = numbers.get(&i) {
                         numbers.insert(i, rng.gen());
                     }

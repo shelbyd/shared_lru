@@ -47,6 +47,10 @@ impl SharedLru {
     fn touch(&self, id: EntryId) {
         self.inner.lock().unwrap().touch(id)
     }
+
+    pub fn percent_used(&self) -> f32 {
+        self.inner.lock().unwrap().allocator.percent_used()
+    }
 }
 
 struct InnerShared {

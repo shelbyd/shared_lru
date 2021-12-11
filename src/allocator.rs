@@ -5,6 +5,7 @@ use rand::{rngs::SmallRng, Rng, SeedableRng};
 pub(crate) struct Allocator {
     used: usize,
     capacity: usize,
+    evicting: bool,
     rng: SmallRng,
     allocated: LruCache<EntryId, usize>,
 }
@@ -14,23 +15,33 @@ impl Allocator {
         Allocator {
             used: 0,
             capacity,
+            evicting: false,
             allocated: LruCache::unbounded(),
             rng: SmallRng::from_entropy(),
         }
     }
 
     pub(crate) fn try_alloc(&mut self, bytes: usize) -> AllocResult {
+        if bytes > self.capacity {
+            return AllocResult::TooLarge;
+        }
+
         if self.used + bytes > self.capacity {
-            return match self.allocated.pop_lru() {
-                Some((id, bytes)) => {
-                    self.used -= bytes;
-                    AllocResult::Evict(id)
-                }
-                None => {
-                    assert!(bytes > self.capacity);
-                    AllocResult::TooLarge
-                }
-            };
+            if !self.evicting {
+                log::info!("Beginning eviction, {}% used", self.percent_used() * 100.);
+            }
+            self.evicting = true;
+        } else if self.used < (self.capacity / 8 * 7) {
+            if self.evicting {
+                log::info!("Finished evicting, {}% used", self.percent_used() * 100.);
+            }
+            self.evicting = false;
+        }
+
+        if self.evicting {
+            let (id, bytes) = self.allocated.pop_lru().expect("should have item");
+            self.used -= bytes;
+            return AllocResult::Evict(id);
         }
 
         let id = self.get_id();
@@ -52,6 +63,10 @@ impl Allocator {
 
     pub(crate) fn set_newest(&mut self, id: EntryId) {
         self.allocated.get(&id);
+    }
+
+    pub fn percent_used(&self) -> f32 {
+        self.used as f32 / self.capacity as f32
     }
 }
 
