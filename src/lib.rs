@@ -106,10 +106,16 @@ where
     }
 
     pub fn get(&self, k: &K) -> Option<ValueRef<K, V>> {
-        let read = self.entry_map.read().unwrap();
-        self.shared.touch(read.get_id(k)?);
+        self.shared.touch(self.get_id(k)?);
 
+        let read = self.entry_map.read().unwrap();
+        // Value may have been evicted between id read and lock acquisition.
+        read.get(k)?;
         Some(RwLockReadGuardRef::new(read).map(|map| map.get(k).unwrap()))
+    }
+
+    fn get_id(&self, k: &K) -> Option<EntryId> {
+        self.entry_map.read().unwrap().get_id(k)
     }
 
     /// Returns an `Option` because the resulting value may be too large to fit inside the
