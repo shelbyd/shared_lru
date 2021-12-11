@@ -9,9 +9,13 @@ repository = "https://github.com/shelbyd/shared_lru"
 license = "MIT"
 
 [dependencies]
+lru = "0.7.0"
 owning_ref = "0.4.1"
 rand = { version = "0.8.4", features = ["small_rng"] }
 serde_json = { version = "1.0.72", optional = true }
 
 [features]
 default = []
+
+[profile.release]
+debug = true

@@ -12,7 +12,6 @@ use std::{
 
 mod allocator;
 use allocator::{AllocResult, Allocator, EntryId};
-mod lru_map;
 mod memory_size;
 pub use memory_size::{JustStack, MemorySize};
 
