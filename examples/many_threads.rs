@@ -14,7 +14,7 @@ fn main() {
                 eprintln!("Thread {} started", thread);
                 let mut rng = rand::thread_rng();
                 for i in 0..1_000_00 {
-                    if numbers.get(&i) == None {
+                    if let None = numbers.get(&i) {
                         numbers.insert(i, rng.gen());
                     }
                     if i % 10_000 == 0 {

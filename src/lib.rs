@@ -3,19 +3,17 @@
 //! This allows an entire server, for example, to keep K MB of heterogenous memory for cache.
 //! Different caches connected to the same SharedLru will use the same "pool" of recency.
 
-use owning_ref::RwLockReadGuardRef;
+use dashmap::{mapref::one::Ref, DashMap};
 use std::{
     collections::HashMap,
     hash::Hash,
-    sync::{Arc, Mutex, RwLock, Weak},
+    sync::{Arc, Mutex, Weak},
 };
 
 mod allocator;
 use allocator::{AllocResult, Allocator, EntryId};
 mod memory_size;
 pub use memory_size::{JustStack, MemorySize};
-
-pub type ValueRef<'l, K, V> = RwLockReadGuardRef<'l, EntryMap<K, V>, V>;
 
 pub struct SharedLru {
     inner: Mutex<InnerShared>,
@@ -31,10 +29,13 @@ impl SharedLru {
         })
     }
 
-    pub fn make_cache<K, V>(self: &Arc<Self>) -> LruCache<K, V> {
+    pub fn make_cache<K, V>(self: &Arc<Self>) -> LruCache<K, V>
+    where
+        K: Eq + Hash,
+    {
         LruCache {
             shared: Arc::clone(self),
-            entry_map: Arc::new(RwLock::new(EntryMap::default())),
+            entry_map: Arc::new(EntryMap::default()),
         }
     }
 
@@ -84,7 +85,7 @@ impl InnerShared {
 
 pub struct LruCache<K, V> {
     shared: Arc<SharedLru>,
-    entry_map: Arc<RwLock<EntryMap<K, V>>>,
+    entry_map: Arc<EntryMap<K, V>>,
 }
 
 impl<K, V> LruCache<K, V>
@@ -101,21 +102,16 @@ where
             Arc::downgrade(&(Arc::clone(&self.entry_map) as Arc<dyn EntryHolder>));
 
         if let Some(id) = self.shared.claim(key.bytes() + value.bytes(), as_trait) {
-            self.entry_map.write().unwrap().insert(id, key, value);
+            self.entry_map.insert(id, key, value);
         }
     }
 
     pub fn get(&self, k: &K) -> Option<ValueRef<K, V>> {
-        self.shared.touch(self.get_id(k)?);
+        self.shared.touch(self.entry_map.get_id(k)?);
 
-        let read = self.entry_map.read().unwrap();
-        // Value may have been evicted between id read and lock acquisition.
-        read.get(k)?;
-        Some(RwLockReadGuardRef::new(read).map(|map| map.get(k).unwrap()))
-    }
-
-    fn get_id(&self, k: &K) -> Option<EntryId> {
-        self.entry_map.read().unwrap().get_id(k)
+        Some(ValueRef {
+            entry: self.entry_map.get(k)?,
+        })
     }
 
     /// Returns an `Option` because the resulting value may be too large to fit inside the
@@ -134,6 +130,18 @@ where
     }
 }
 
+pub struct ValueRef<'d, K, V> {
+    entry: Ref<'d, EntryId, (K, V)>,
+}
+
+impl<'d, K, V> core::ops::Deref for ValueRef<'d, K, V> {
+    type Target = V;
+
+    fn deref(&self) -> &Self::Target {
+        &self.entry.deref().1
+    }
+}
+
 pub trait Simple: Send + Sync + 'static {}
 
 impl<T> Simple for T where T: Send + Sync + 'static {}
@@ -142,26 +150,26 @@ trait EntryHolder: Simple {
     fn evict(&self, id: EntryId);
 }
 
-impl<K, V> EntryHolder for RwLock<EntryMap<K, V>>
+impl<K, V> EntryHolder for EntryMap<K, V>
 where
     K: Eq + Hash + Simple,
     V: Simple,
 {
     fn evict(&self, id: EntryId) {
-        self.write().unwrap().remove(id);
+        self.remove(id);
     }
 }
 
 pub struct EntryMap<K, V> {
-    values: HashMap<EntryId, (K, V)>,
-    ids: HashMap<K, EntryId>,
+    values: DashMap<EntryId, (K, V)>,
+    ids: DashMap<K, EntryId>,
 }
 
 impl<K, V> EntryMap<K, V>
 where
     K: Eq + Hash,
 {
-    fn insert(&mut self, id: EntryId, key: K, value: V)
+    fn insert(&self, id: EntryId, key: K, value: V)
     where
         K: Clone,
     {
@@ -169,23 +177,26 @@ where
         self.ids.insert(key, id);
     }
 
-    fn get(&self, key: &K) -> Option<&V> {
+    fn get(&self, key: &K) -> Option<Ref<EntryId, (K, V)>> {
         let id = self.ids.get(key)?;
-        self.values.get(id).map(|(_, v)| v)
+        self.values.get(&id)
     }
 
     fn get_id(&self, key: &K) -> Option<EntryId> {
-        self.ids.get(key).cloned()
+        self.ids.get(key).map(|id| id.clone())
     }
 
-    fn remove(&mut self, id: EntryId) -> Option<(K, V)> {
-        let (key, value) = self.values.remove(&id)?;
+    fn remove(&self, id: EntryId) -> Option<(K, V)> {
+        let (_, (key, value)) = self.values.remove(&id)?;
         self.ids.remove(&key)?;
         Some((key, value))
     }
 }
 
-impl<K, V> Default for EntryMap<K, V> {
+impl<K, V> Default for EntryMap<K, V>
+where
+    K: Eq + Hash,
+{
     fn default() -> Self {
         EntryMap {
             values: Default::default(),
