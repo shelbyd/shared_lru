@@ -153,9 +153,8 @@ where
 }
 
 pub struct EntryMap<K, V> {
-    values: HashMap<EntryId, V>,
+    values: HashMap<EntryId, (K, V)>,
     ids: HashMap<K, EntryId>,
-    id_keys: HashMap<EntryId, K>,
 }
 
 impl<K, V> EntryMap<K, V>
@@ -166,14 +165,13 @@ where
     where
         K: Clone,
     {
-        self.values.insert(id, value);
-        self.ids.insert(key.clone(), id);
-        self.id_keys.insert(id, key);
+        self.values.insert(id, (key.clone(), value));
+        self.ids.insert(key, id);
     }
 
     fn get(&self, key: &K) -> Option<&V> {
         let id = self.ids.get(key)?;
-        self.values.get(id)
+        self.values.get(id).map(|(_, v)| v)
     }
 
     fn get_id(&self, key: &K) -> Option<EntryId> {
@@ -181,9 +179,8 @@ where
     }
 
     fn remove(&mut self, id: EntryId) -> Option<(K, V)> {
-        let key = self.id_keys.remove(&id)?;
+        let (key, value) = self.values.remove(&id)?;
         self.ids.remove(&key)?;
-        let value = self.values.remove(&id)?;
         Some((key, value))
     }
 }
@@ -193,7 +190,6 @@ impl<K, V> Default for EntryMap<K, V> {
         EntryMap {
             values: Default::default(),
             ids: Default::default(),
-            id_keys: Default::default(),
         }
     }
 }
